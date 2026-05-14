@@ -1,0 +1,124 @@
+services:
+
+  # ─── MongoDB ───
+  mongodb:
+    image: mongo:7.0
+    container_name: mongo
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: example
+      MONGO_INITDB_DATABASE: appdb
+    volumes:
+      - mongodb_data:/data/db
+      - ./init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - monitoring
+
+  # ─── MongoDB Exporter ───
+  mongo_exporter:
+    image: percona/mongodb_exporter:0.40.0
+    container_name: mongo_exporter
+    ports:
+      - "9216:9216"
+    environment:
+      MONGODB_URI: "mongodb://root:example@mongodb:27017/?authSource=admin"
+    command:
+      - "--collect-all"
+      - "--compatible-mode"
+    depends_on:
+      - mongodb
+    networks:
+      - monitoring
+
+  # ─── Prometheus ───
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    depends_on:
+      - mongo_exporter
+    networks:
+      - monitoring
+
+  # ─── MongoDB REST API (free middleware for Grafana + advisor-web) ───
+  mongo-api:
+    image: node:18-alpine
+    container_name: mongo-api
+    ports:
+      - "4000:4000"
+    working_dir: /app
+    volumes:
+      - ./mongo-api:/app
+    command: sh -c "npm install && node index.js"
+    environment:
+      MONGO_URI: "mongodb://root:example@mongodb:27017/?authSource=admin"
+      DB_NAME: appdb
+      PORT: 4000
+    depends_on:
+      - mongodb
+    networks:
+      - monitoring
+
+  # ─── Grafana ───
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      # yesoreyeram-infinity-datasource: free plugin, queries any REST/JSON API
+      GF_INSTALL_PLUGINS: yesoreyeram-infinity-datasource
+      # Allow iframe embedding for Approach A (panel embed in webpages)
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      # Allow the frontend proxy origin through Grafana's CSRF check
+      GF_SECURITY_CSRF_TRUSTED_ORIGINS: "localhost:8080"
+      # Enable public dashboard sharing
+      GF_FEATURE_TOGGLES_ENABLE: publicDashboards
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - mongo-api
+    networks:
+      - monitoring
+
+  # ─── Frontend demo page ───
+  frontend:
+    image: nginx:alpine
+    container_name: frontend
+    ports:
+      - "8080:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - grafana
+      - mongo-api
+    networks:
+      - monitoring
+
+volumes:
+  mongodb_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  monitoring:
+    driver: bridge

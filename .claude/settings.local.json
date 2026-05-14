@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker exec mongo mongosh -u root -p example --authenticationDatabase admin --quiet --eval ' *)",
+      "Bash(docker compose *)",
+      "Bash(docker exec *)",
+      "Bash(curl -s http://localhost:4000/health)",
+      "Bash(curl -s http://localhost:4000/collections)",
+      "Bash(curl -s -X POST http://localhost:4000/aggregate/daily_revenue -H 'Content-Type: application/json' -d '{\"pipeline\":[{\"$sort\":{\"date\":1}},{\"$project\":{\"_id\":0,\"day\":1,\"revenue\":1}}]}')",
+      "Bash(curl -s -X POST http://localhost:4000/aggregate/orders -H 'Content-Type: application/json' -d '{\"pipeline\":[{\"$group\":{\"_id\":\"$status\",\"count\":{\"$sum\":1}}},{\"$sort\":{\"count\":-1}}]}')",
+      "Bash(curl -s http://localhost:8080/)",
+      "Bash(Start-Sleep -Seconds 8)",
+      "Bash(curl -s -X POST http://localhost:8080/grafana-api/api/ds/query -H 'Content-Type: application/json' -d '{\"queries\":[{\"refId\":\"A\",\"datasource\":{\"uid\":\"mongodb-api-ds\"},\"type\":\"json\",\"source\":\"url\",\"url\":\"http://mongo-api:4000/aggregate/orders\",\"url_options\":{\"method\":\"POST\",\"data\":\"{\\\\\"pipeline\\\\\":[{\\\\\"$group\\\\\":{\\\\\"_id\\\\\":\\\\\"$status\\\\\",\\\\\"count\\\\\":{\\\\\"$sum\\\\\":1}}}]}\"},\"columns\":[{\"selector\":\"_id\",\"text\":\"Status\",\"type\":\"string\"},{\"selector\":\"count\",\"text\":\"Count\",\"type\":\"number\"}]}],\"from\":\"now-1h\",\"to\":\"now\"}')",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\topdo\\\\grafana-mongodb\" -Depth 1 | Where-Object { $_.Name -ne \"node_modules\" } | Select-Object FullName, PSIsContainer)",
+      "Bash(git rm *)",
+      "Bash(git add *)"
+    ]
+  }
+}

@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grafana + MongoDB Integration Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #f0f4ff;
+      --surface: #f8faff;
+      --card:    #ffffff;
+      --border:  #dce2f0;
+      --shadow:  0 1px 4px rgba(20,35,80,.08), 0 4px 20px rgba(20,35,80,.06);
+      --shadow-lg: 0 4px 16px rgba(20,35,80,.10), 0 12px 40px rgba(20,35,80,.08);
+      --text:    #1c2540;
+      --muted:   #5a6a8c;
+      --dim:     #99a8c2;
+
+      --o:  #c2540a; --o-bg: #fff5ec; --o-bd: #fcd0a8;
+      --b:  #1a44d0; --b-bg: #edf2ff; --b-bd: #b8cffe;
+      --g:  #166534; --g-bg: #f0fdf5; --g-bd: #bbf7ce;
+      --t:  #0f776e; --t-bg: #f0fdfb; --t-bd: #9af0e4;
+      --p:  #5b21b6;
+      --r:  #b91c1c;
+      --y:  #b45309;
+    }
+
+    body { background: var(--bg); color: var(--text); font-family: 'Inter','Segoe UI',system-ui,sans-serif; line-height: 1.6; }
+
+    ::-webkit-scrollbar { width:6px; height:6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius:3px; }
+
+    /* ══ STICKY NAV ══ */
+    #sticky-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      background: rgba(255,255,255,.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: .45rem 2rem;
+      display: flex; align-items: center; gap: 1rem;
+      transform: translateY(-100%); transition: transform .25s ease;
+      box-shadow: 0 2px 12px rgba(20,35,80,.08);
+    }
+    #sticky-nav.visible { transform: translateY(0); }
+    .snav-brand { font-size:.75rem; font-weight:800; color:var(--muted); letter-spacing:.02em; margin-right:.5rem; white-space:nowrap; }
+    .snav-links { display:flex; gap:.4rem; flex-wrap:wrap; }
+    .snav-link {
+      font-size:.72rem; font-weight:600; padding:.22rem .7rem; border-radius:999px;
+      text-decoration:none; transition:all .15s;
+    }
+    .snav-link:hover { opacity:.85; }
+    .snl1 { background:rgba(234,88,12,.12); color:#ea580c; border:1px solid rgba(234,88,12,.2); }
+    .snl2 { background:rgba(37,99,235,.12); color:#2563eb; border:1px solid rgba(37,99,235,.2); }
+    .snl3 { background:rgba(22,163,74,.12); color:#16a34a; border:1px solid rgba(22,163,74,.2); }
+    .snl4 { background:rgba(15,118,110,.12); color:#0f766e; border:1px solid rgba(15,118,110,.2); }
+
+    /* ══ HEADER ══ */
+    header {
+      background: linear-gradient(130deg,#112350 0%,#0e1c3f 55%,#091630 100%);
+      padding: 3rem 2rem 2.25rem; text-align: center; position: relative; overflow: hidden;
+    }
+    /* Grid/dot pattern overlay */
+    header::before {
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background-image: radial-gradient(circle, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+    header::after {
+      content:''; position:absolute; inset:0;
+      background: radial-gradient(ellipse 80% 50% at 50% 110%, rgba(234,120,30,.22) 0%, transparent 65%);
+      pointer-events:none;
+    }
+    header h1 { font-size:2.1rem; font-weight:800; color:#fff; letter-spacing:-.02em; margin-bottom:.4rem; position:relative; z-index:1; }
+    header h1 em { font-style:normal; color:#fb923c; }
+    header p  { color:rgba(255,255,255,.6); font-size:.9rem; max-width:560px; margin:0 auto .9rem; position:relative; z-index:1; }
+    .hchips   { display:flex; justify-content:center; gap:.6rem; flex-wrap:wrap; position:relative; z-index:1; }
+    .hchip {
+      font-size:.73rem; font-weight:700; padding:.3rem .95rem; border-radius:999px;
+      text-decoration:none; transition:transform .15s, opacity .15s;
+      display:flex; align-items:center; gap:.35rem;
+    }
+    .hchip:hover { transform:translateY(-2px); opacity:.9; }
+    .hc1 { background:rgba(249,115,22,.2); color:#fb923c; border:1px solid rgba(249,115,22,.35); }
+    .hc2 { background:rgba(59,130,246,.2); color:#7cb9ff; border:1px solid rgba(59,130,246,.35); }
+    .hc3 { background:rgba(34,197,94,.2);  color:#5de899; border:1px solid rgba(34,197,94,.35); }
+    .hc4 { background:rgba(168,85,247,.2); color:#c084fc; border:1px solid rgba(168,85,247,.35); }
+
+    /* ══ STATUS BAR ══ */
+    .status-bar {
+      background:var(--card); border-bottom:1px solid var(--border);
+      padding:.65rem 2rem; display:flex; justify-content:center; gap:.6rem; flex-wrap:wrap;
+    }
+    .pill {
+      display:flex; align-items:center; gap:.38rem;
+      font-size:.72rem; font-weight:500; padding:.26rem .78rem; border-radius:999px;
+      background:var(--surface); border:1px solid var(--border);
+      text-decoration:none; color:var(--muted); transition:all .2s;
+    }
+    .pill:hover { border-color:var(--o); color:var(--text); }
+    .dot { width:6px; height:6px; border-radius:50%; background:var(--dim); flex-shrink:0; }
+    .dot.checking { background:var(--y); animation:blink 1.4s infinite; }
+    .dot.up   { background:#16a34a; box-shadow:0 0 5px rgba(22,163,74,.4); }
+    .dot.down { background:var(--r); }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* ══ LIVE STATS BAR ══ */
+    .stats-bar {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: .85rem 2rem;
+      display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;
+    }
+    .stat-box {
+      display: flex; align-items: center; gap: .65rem;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: .55rem 1.1rem; min-width: 160px;
+    }
+    .stat-icon { font-size: 1.4rem; line-height:1; }
+    .stat-label { font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; }
+    .stat-value { font-size: 1.3rem; font-weight: 800; color: var(--text); line-height:1.1; }
+    .stat-value.loading { opacity:.4; font-size:1rem; }
+
+    /* ══ OVERVIEW CARDS ══ */
+    .overview {
+      display:grid; grid-template-columns:repeat(3,1fr); gap:1rem;
+      padding:1.75rem 2rem; max-width:1200px; margin:0 auto;
+    }
+    @media(max-width:820px){ .overview{ grid-template-columns:1fr; } }
+    .ocard {
+      background:var(--card); border:1px solid var(--border); border-radius:12px;
+      padding:1.25rem 1.25rem 1rem; box-shadow:var(--shadow);
+      text-decoration:none; color:inherit; display:block;
+      transition:transform .18s, box-shadow .18s;
+      position: relative; overflow: hidden;
+    }
+    .ocard:hover { transform:translateY(-3px); box-shadow:var(--shadow-lg); }
+    /* Section watermark number */
+    .ocard::after {
+      content: attr(data-num);
+      position: absolute; right: .6rem; bottom: -.5rem;
+      font-size: 5rem; font-weight: 900; line-height: 1;
+      opacity: .045; color: var(--text); pointer-events: none; user-select: none;
+    }
+    .ocard-num {
+      display:inline-flex; align-items:center; justify-content:center;
+      width:2rem; height:2rem; border-radius:50%; font-weight:800; font-size:.88rem; margin-bottom:.7rem;
+    }
+    .ocard h3 { font-size:.95rem; font-weight:700; margin-bottom:.25rem; }
+    .ocard p  { font-size:.77rem; color:var(--muted); margin-bottom:.75rem; line-height:1.5; }
+    .ocard-path { font-size:.67rem; font-family:monospace; padding:.25rem .5rem; border-radius:5px; color:var(--muted); }
+    .oc1 { border-top:3px solid #ea580c; border-left:4px solid #ea580c; }
+    .oc1 .ocard-num  { background:var(--o-bg); color:var(--o); }
+    .oc1 .ocard-path { background:var(--o-bg); }
+    .oc2 { border-top:3px solid #2563eb; border-left:4px solid #2563eb; }
+    .oc2 .ocard-num  { background:var(--b-bg); color:var(--b); }
+    .oc2 .ocard-path { background:var(--b-bg); }
+    .oc3 { border-top:3px solid #16a34a; border-left:4px solid #16a34a; }
+    .oc3 .ocard-num  { background:var(--g-bg); color:var(--g); }
+    .oc3 .ocard-path { background:var(--g-bg); }
+
+    /* ══ COMPARISON TABLE ══ */
+    .cmp-wrap { padding: 0 2rem 2rem; max-width: 1200px; margin: 0 auto; }
+    .cmp-title { font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:var(--dim); margin-bottom:.85rem; }
+    .cmp-table { width:100%; border-collapse:collapse; font-size:.8rem; background:var(--card); border-radius:12px; overflow:hidden; box-shadow:var(--shadow); border:1px solid var(--border); }
+    .cmp-table th { padding:.7rem 1rem; text-align:left; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); background:var(--surface); border-bottom:2px solid var(--border); }
+    .cmp-table td { padding:.7rem 1rem; border-bottom:1px solid var(--border); vertical-align:middle; line-height:1.4; }
+    .cmp-table tr:last-child td { border-bottom:none; }
+    .cmp-table .row-label { font-weight:700; font-size:.75rem; color:var(--text); white-space:nowrap; }
+    .cmp-table tr:hover td { background:var(--surface); }
+    .cmp-table .th-m1 { color:#ea580c; }
+    .cmp-table .th-m2 { color:#2563eb; }
+    .cmp-table .th-m3 { color:#16a34a; }
+    .yes { color:#16a34a; font-weight:700; }
+    .no  { color:#dc2626; font-weight:700; }
+    .partial { color:#b45309; font-weight:700; }
+
+    /* ══ SECTION WRAPPER ══ */
+    .sep { border:none; border-top:2px solid var(--border); margin:0 2rem; }
+    .section { padding:0 2rem 2.5rem; max-width:1320px; margin:0 auto; position:relative; }
+
+    /* Section watermark */
+    .section-num {
+      position:absolute; right:1.5rem; top:1.2rem;
+      font-size:7rem; font-weight:900; line-height:1;
+      opacity:.04; color:var(--text); user-select:none; pointer-events:none; z-index:0;
+    }
+
+    /* Method header bar */
+    .mhead {
+      display:flex; align-items:center; gap:.7rem; flex-wrap:wrap;
+      padding:1.6rem 0 1.1rem; border-bottom:1px solid var(--border); margin-bottom:1.4rem;
+      position:relative; z-index:1;
+    }
+    .mbadge { display:flex; align-items:center; justify-content:center; width:2.2rem; height:2.2rem; border-radius:50%; font-weight:800; font-size:.88rem; flex-shrink:0; }
+    .mhead h2 { font-size:1.2rem; font-weight:800; }
+    .mtag { font-size:.68rem; font-weight:700; letter-spacing:.05em; padding:.18rem .6rem; border-radius:5px; }
+
+    .m1 .mbadge { background:var(--o-bg); color:var(--o); }
+    .m1 .mhead h2  { color:var(--o); }
+    .m1 .mtag { background:var(--o-bg); color:var(--o); border:1px solid var(--o-bd); }
+
+    .m2 .mbadge { background:var(--b-bg); color:var(--b); }
+    .m2 .mhead h2  { color:var(--b); }
+    .m2 .mtag { background:var(--b-bg); color:var(--b); border:1px solid var(--b-bd); }
+
+    .m3 .mbadge { background:var(--g-bg); color:var(--g); }
+    .m3 .mhead h2  { color:var(--g); }
+    .m3 .mtag { background:var(--g-bg); color:var(--g); border:1px solid var(--g-bd); }
+
+    .mx .mbadge { background:var(--t-bg); color:var(--t); }
+    .mx .mhead h2  { color:var(--t); }
+    .mx .mtag { background:var(--t-bg); color:var(--t); border:1px solid var(--t-bd); }
+
+    /* ══ FLOW DIAGRAMS ══ */
+    .flow-box {
+      background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+      border:1px solid var(--border); border-radius:12px;
+      padding:1.4rem 1.5rem 1.25rem; margin-bottom:1.25rem; overflow-x:auto;
+      position:relative; z-index:1;
+    }
+    .flow-box-title { font-size:.6rem; letter-spacing:.14em; text-transform:uppercase; color:var(--dim); font-weight:700; margin-bottom:1.1rem; }
+
+    .flow { display:flex; align-items:flex-start; gap:0; min-width:fit-content; }
+
+    /* Node */
+    .fn { display:flex; flex-direction:column; align-items:center; text-align:center; flex-shrink:0; width:104px; }
+    .fn-step {
+      font-size:.62rem; font-weight:800; color:var(--muted); margin-bottom:.18rem;
+      letter-spacing:.02em; opacity:.7;
+    }
+    .fn-box {
+      width:82px; height:82px; border-radius:14px; border:2px solid;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      margin-bottom:.35rem; transition:transform .18s, box-shadow .18s; cursor:default;
+      box-shadow: 0 2px 8px rgba(20,35,80,.09), 0 1px 2px rgba(20,35,80,.05);
+    }
+    .fn-box:hover { transform:translateY(-3px); box-shadow: 0 6px 18px rgba(20,35,80,.13); }
+    .fn-ico  { font-size:1.55rem; line-height:1; }
+    .fn-name { font-size:.67rem; font-weight:800; margin-top:.15rem; }
+    .fn-sub  { font-size:.6rem; color:var(--muted); }
+    .fn-port { font-size:.59rem; font-family:monospace; margin-top:.1rem; }
+
+    /* Node color themes */
+    .fn-mongo   .fn-box { background:#f0fdf5; border-color:#86efac; color:#15803d; }
+    .fn-api     .fn-box { background:#f0fdfa; border-color:#5eead4; color:#0f766e; }
+    .fn-grafana .fn-box { background:#fff8f0; border-color:#fdba74; color:#c2410c; }
+    .fn-chart   .fn-box { background:#eff6ff; border-color:#93c5fd; color:#1d4ed8; }
+    .fn-iframe  .fn-box { background:#fefce8; border-color:#fde047; color:#854d0e; }
+    .fn-browser .fn-box { background:#faf5ff; border-color:#d8b4fe; color:#5b21b6; }
+    .fn-dim     .fn-box { background:#f8f9fc; border-color:#dde3ef; color:var(--dim); opacity:.4; }
+    .fn-dim .fn-sub, .fn-dim .fn-port { opacity:.4; }
+    .bypassed { font-size:.55rem; text-transform:uppercase; letter-spacing:.05em; color:#94a3b8; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:4px; padding:.1rem .35rem; margin-top:.15rem; }
+
+    /* Edge */
+    .fe { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; padding-top:1.5rem; flex-shrink:0; width:72px; }
+    .fe-lbl { font-size:.56rem; color:var(--muted); text-align:center; line-height:1.3; margin-bottom:.28rem; max-width:70px; }
+    .fe-line { display:flex; align-items:center; width:100%; }
+    .fe-track { flex:1; height:2px; }
+    .fe-head  { width:0; height:0; border-top:5px solid transparent; border-bottom:5px solid transparent; border-left:7px solid; flex-shrink:0; }
+
+    /* Edge colors per method */
+    .fl-m1 .fe-track { background:#fb923c; }
+    .fl-m1 .fe-head  { border-left-color:#fb923c; }
+    .fl-m2 .fe-track { background:#60a5fa; }
+    .fl-m2 .fe-head  { border-left-color:#60a5fa; }
+    .fl-m3 .fe-track { background:#4ade80; }
+    .fl-m3 .fe-head  { border-left-color:#4ade80; }
+    .fe-dim .fe-track { background:#e2e8f0; }
+    .fe-dim .fe-head  { border-left-color:#e2e8f0; }
+    .fe-dim .fe-lbl   { opacity:.3; }
+
+    /* ══ PROS/CONS ══ */
+    .pc { display:grid; grid-template-columns:1fr 1fr; gap:.75rem; margin-bottom:1.25rem; position:relative; z-index:1; }
+    @media(max-width:580px){ .pc { grid-template-columns:1fr; } }
+    .pc-box { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:.85rem 1rem; }
+    .pc-box h4 { font-size:.68rem; font-weight:800; letter-spacing:.09em; text-transform:uppercase; margin-bottom:.45rem; }
+    .pc-box.pros h4 { color:#16a34a; }
+    .pc-box.cons h4 { color:#dc2626; }
+    .pc-box ul { list-style:none; }
+    .pc-box li { font-size:.77rem; color:var(--muted); padding:.18rem 0; display:flex; gap:.4rem; line-height:1.4; }
+    .pc-box.pros li::before { content:'✓'; color:#16a34a; font-weight:800; flex-shrink:0; }
+    .pc-box.cons li::before { content:'✗'; color:#dc2626; font-weight:800; flex-shrink:0; }
+
+    /* ══ PANEL GRID ══ */
+    .grid { display:grid; gap:1rem; position:relative; z-index:1; }
+    .g1 { grid-template-columns:1fr; }
+    .g2 { grid-template-columns:repeat(2,1fr); }
+    .g4 { grid-template-columns:repeat(4,1fr); }
+    @media(max-width:1050px){ .g4 { grid-template-columns:repeat(2,1fr); } }
+    @media(max-width:700px) { .g2,.g4 { grid-template-columns:1fr; } }
+    .card {
+      background:var(--card); border:1px solid var(--border); border-radius:10px;
+      overflow:hidden; box-shadow:var(--shadow);
+    }
+    .card.c-orange { border-left:4px solid #ea580c; }
+    .card.c-blue   { border-left:4px solid #2563eb; }
+    .card.c-green  { border-left:4px solid #16a34a; }
+    .ctitle {
+      padding:.55rem .9rem; font-size:.73rem; color:var(--muted);
+      border-bottom:1px solid var(--border); background:var(--surface);
+      display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+    }
+    .ctitle code { font-size:.66rem; background:var(--bg); padding:.08rem .3rem; border-radius:3px; border:1px solid var(--border); white-space:nowrap; }
+    .ctitle a { color:var(--o); text-decoration:none; font-size:.68rem; flex-shrink:0; }
+    iframe { width:100%; border:none; display:block; }
+
+    /* ══ CHART DEMO ══ */
+    .demo-split { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.25rem; position:relative; z-index:1; }
+    @media(max-width:800px){ .demo-split { grid-template-columns:1fr; } }
+    .demo-dual  { display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1.25rem; position:relative; z-index:1; }
+    @media(max-width:800px){ .demo-dual  { grid-template-columns:1fr; } }
+
+    .cdemo { background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:var(--shadow); }
+    .cdemo.c-blue   { border-left:4px solid #2563eb; }
+    .cdemo.c-green  { border-left:4px solid #16a34a; }
+    .cdemo.c-teal   { border-left:4px solid #0d9488; }
+    .cdemo-head {
+      padding:.7rem 1rem; border-bottom:1px solid var(--border); background:var(--surface);
+      display:flex; align-items:center; justify-content:space-between; gap:.75rem;
+    }
+    .cdemo-head h4 { font-size:.88rem; font-weight:700; }
+    .cdemo-head .sub { font-size:.7rem; color:var(--muted); margin-top:.1rem; }
+    .cdemo-body { padding:1.25rem; }
+    .chart-wrap { position:relative; height:260px; }
+    .chart-wrap.tall { height:300px; }
+    .chart-ph { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:.5rem; font-size:.8rem; color:var(--muted); }
+    .chart-ph.err { color:var(--r); }
+    .spin { width:28px; height:28px; border-radius:50%; border:3px solid var(--border); border-top-color:var(--b); animation:spin .75s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* ══ CODE BLOCK ══ */
+    .cblock {
+      background:#1e2a42; border:1px solid #2d3e5c; border-radius:8px;
+      padding:.9rem 1rem; overflow-x:auto;
+      font-family:'Cascadia Code','Fira Code','Consolas',monospace;
+      font-size:.72rem; line-height:1.65; color:#cdd9f0;
+    }
+    .cblock .kw  { color:#7dd3fc; }
+    .cblock .str { color:#86efac; }
+    .cblock .cmt { color:#4a6080; font-style:italic; }
+    .cblock .fn  { color:#fbbf24; }
+    .cblock .num { color:#f9a8d4; }
+    .cblock .key { color:#e879f9; }
+
+    /* ══ API EXPLORER ══ */
+    .explorer { background:var(--card); border:1px solid var(--border); border-radius:10px; overflow:hidden; box-shadow:var(--shadow); position:relative; z-index:1; }
+    .ex-ctrl { padding:.7rem 1rem; display:flex; gap:.45rem; flex-wrap:wrap; border-bottom:1px solid var(--border); background:var(--surface); }
+    .xbtn { padding:.28rem .7rem; border-radius:6px; border:1px solid var(--border); background:var(--card); color:var(--text); font-size:.72rem; font-family:monospace; cursor:pointer; transition:all .15s; }
+    .xbtn:hover  { border-color:var(--t); background:var(--t-bg); }
+    .xbtn.active { border-color:var(--t); background:var(--t-bg); color:var(--t); }
+    .mg { font-size:.58rem; font-weight:800; color:var(--g); margin-right:.18rem; }
+    .mp { font-size:.58rem; font-weight:800; color:var(--p); margin-right:.18rem; }
+    .ex-panes { display:grid; grid-template-columns:1fr 1fr; }
+    @media(max-width:640px){ .ex-panes { grid-template-columns:1fr; } }
+    .ex-pane { padding:.85rem 1rem; }
+    .ex-pane:first-child { border-right:1px solid var(--border); }
+    .plbl { font-size:.6rem; text-transform:uppercase; letter-spacing:.1em; color:var(--dim); font-weight:700; margin-bottom:.4rem; }
+    pre { font-family:'Cascadia Code','Fira Code',monospace; font-size:.72rem; background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:.7rem; max-height:260px; overflow:auto; white-space:pre-wrap; word-break:break-all; color:var(--text); }
+    .si { color:var(--dim); font-style:italic; }
+    .sl { color:var(--y); font-style:italic; }
+    .se { color:var(--r); }
+
+    /* ══ REFRESH BUTTON ══ */
+    .rbtn { padding:.28rem .75rem; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--muted); font-size:.72rem; cursor:pointer; transition:all .15s; }
+    .rbtn:hover { border-color:var(--b); color:var(--b); background:var(--b-bg); }
+
+    /* ══ FOOTER ══ */
+    footer { text-align:center; padding:1.5rem 2rem; color:var(--dim); font-size:.76rem; border-top:1px solid var(--border); }
+    footer a { color:var(--o); text-decoration:none; }
+    footer a:hover { text-decoration:underline; }
+    footer p+p { margin-top:.3rem; }
+
+    .mb { margin-bottom:1.25rem; }
+  </style>
+</head>
+<body>
+
+<!-- ══ STICKY NAV ══ -->
+<nav id="sticky-nav">
+  <div class="snav-brand">Grafana + MongoDB</div>
+  <div class="snav-links">
+    <a class="snav-link snl1" href="#m1">① iframe Embed</a>
+    <a class="snav-link snl2" href="#m2">② Grafana API</a>
+    <a class="snav-link snl3" href="#m3">③ Direct API</a>
+    <a class="snav-link snl4" href="#mx">🔬 Explorer</a>
+  </div>
+</nav>
+
+<!-- ══ HEADER ══ -->
+<header id="page-header">
+  <h1>Grafana + <em>MongoDB</em> Integration</h1>
+  <p>Three methods to bring MongoDB data into a webpage — each with a different trade-off between simplicity, control, and dependencies.</p>
+  <div class="hchips">
+    <a class="hchip hc1" href="#m1">🖼️ iframe embed</a>
+    <a class="hchip hc2" href="#m2">📡 Grafana HTTP API</a>
+    <a class="hchip hc3" href="#m3">⚡ Direct mongo-api</a>
+    <a class="hchip hc4" href="#mx">🔬 API Explorer</a>
+  </div>
+</header>
+
+<!-- ══ STATUS BAR ══ -->
+<div class="status-bar">
+  <a class="pill" href="http://localhost:3000" target="_blank"><span class="dot checking" id="dot-grafana"></span>Grafana :3000</a>
+  <a class="pill" href="http://localhost:4000/health" target="_blank"><span class="dot checking" id="dot-api"></span>mongo-api :4000</a>
+  <a class="pill" href="http://localhost:9090" target="_blank"><span class="dot checking" id="dot-prom"></span>Prometheus :9090</a>
+  <a class="pill" href="http://localhost:9216/metrics" target="_blank"><span class="dot checking" id="dot-exp"></span>Exporter :9216</a>
+</div>
+
+<!-- ══ LIVE STATS BAR ══ -->
+<div class="stats-bar">
+  <div class="stat-box">
+    <div class="stat-icon">📦</div>
+    <div>
+      <div class="stat-label">Total Orders</div>
+      <div class="stat-value loading" id="stat-orders">…</div>
+    </div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-icon">🛒</div>
+    <div>
+      <div class="stat-label">Products</div>
+      <div class="stat-value loading" id="stat-products">…</div>
+    </div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-icon">💰</div>
+    <div>
+      <div class="stat-label">Revenue Today</div>
+      <div class="stat-value loading" id="stat-revenue">…</div>
+    </div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-icon">👥</div>
+    <div>
+      <div class="stat-label">Active Users</div>
+      <div class="stat-value loading" id="stat-users">…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ METHOD OVERVIEW ══ -->
+<div class="overview">
+  <a class="ocard oc1" href="#m1" data-num="01">
+    <div class="ocard-num">1</div>
+    <h3>iframe Embed</h3>
+    <p>Grafana renders the entire panel. You embed it with a single &lt;iframe&gt; tag. Zero chart code in your frontend.</p>
+    <div class="ocard-path">MongoDB → API → Grafana → &lt;iframe&gt; → Page</div>
+  </a>
+  <a class="ocard oc2" href="#m2" data-num="02">
+    <div class="ocard-num">2</div>
+    <h3>Grafana HTTP API</h3>
+    <p>Call Grafana's query API, get back data frames, render with Chart.js in your own style.</p>
+    <div class="ocard-path">MongoDB → API → Grafana /api/ds/query → Chart.js</div>
+  </a>
+  <a class="ocard oc3" href="#m3" data-num="03">
+    <div class="ocard-num">3</div>
+    <h3>Direct mongo-api</h3>
+    <p>Skip Grafana entirely. Call the REST bridge from the browser, get plain JSON, render your own chart.</p>
+    <div class="ocard-path">MongoDB → mongo-api → fetch() → Chart.js</div>
+  </a>
+</div>
+
+<!-- ══ COMPARISON TABLE ══ -->
+<div class="cmp-wrap">
+  <div class="cmp-title">Method Comparison</div>
+  <table class="cmp-table">
+    <thead>
+      <tr>
+        <th>Attribute</th>
+        <th class="th-m1">① iframe Embed</th>
+        <th class="th-m2">② Grafana HTTP API</th>
+        <th class="th-m3">③ Direct mongo-api</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="row-label">Chart library</td>
+        <td>Grafana built-in</td>
+        <td>Chart.js / Highcharts</td>
+        <td>Chart.js / Highcharts</td>
+      </tr>
+      <tr>
+        <td class="row-label">Grafana needed?</td>
+        <td><span class="yes">✓ Required</span></td>
+        <td><span class="yes">✓ Required</span></td>
+        <td><span class="no">✗ Not needed</span></td>
+      </tr>
+      <tr>
+        <td class="row-label">Frontend code</td>
+        <td><span class="yes">Minimal</span> (1 tag)</td>
+        <td><span class="partial">Medium</span> (parse frames)</td>
+        <td><span class="partial">Medium</span> (map JSON)</td>
+      </tr>
+      <tr>
+        <td class="row-label">Styling control</td>
+        <td><span class="no">✗ None</span></td>
+        <td><span class="yes">✓ Full</span></td>
+        <td><span class="yes">✓ Full</span></td>
+      </tr>
+      <tr>
+        <td class="row-label">CORS handling</td>
+        <td>Via iframe</td>
+        <td><span class="partial">nginx proxy needed</span></td>
+        <td><span class="partial">CORS on API</span></td>
+      </tr>
+      <tr>
+        <td class="row-label">Best for</td>
+        <td>Ops dashboards</td>
+        <td>Hybrid apps with Grafana</td>
+        <td>Product UIs, advisor-web</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<hr class="sep">
+
+<!-- ══════════════════════════════════════════
+     METHOD 1 — IFRAME EMBED
+══════════════════════════════════════════ -->
+<div class="section m1" id="m1">
+  <div class="section-num">01</div>
+  <div class="mhead">
+    <div class="mbadge">1</div>
+    <h2>iframe Embed</h2>
+    <span class="mtag">Grafana owns rendering</span>
+  </div>
+
+  <!-- Diagram -->
+  <div class="flow-box">
+    <div class="flow-box-title">Data Flow — every hop happens server-side until the final iframe lands in the browser</div>
+    <div class="flow fl-m1">
+      <div class="fn fn-mongo">
+        <div class="fn-step">①</div>
+        <div class="fn-box"><span class="fn-ico">🍃</span><span class="fn-name">MongoDB</span></div>
+        <div class="fn-sub">collections</div><div class="fn-port">:27017</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">aggregation pipeline</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-api">
+        <div class="fn-step">②</div>
+        <div class="fn-box"><span class="fn-ico">⚡</span><span class="fn-name">mongo-api</span></div>
+        <div class="fn-sub">Express REST bridge</div><div class="fn-port">:4000</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">POST /aggregate via Infinity datasource</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-grafana">
+        <div class="fn-step">③</div>
+        <div class="fn-box"><span class="fn-ico">📊</span><span class="fn-name">Grafana</span></div>
+        <div class="fn-sub">renders chart to HTML</div><div class="fn-port">:3000</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">iframe src= URL with panel ID</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-iframe">
+        <div class="fn-step">④</div>
+        <div class="fn-box"><span class="fn-ico">🖼️</span><span class="fn-name">&lt;iframe&gt;</span></div>
+        <div class="fn-sub">embed tag in HTML</div><div class="fn-port">html attr</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">browser loads & displays</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-browser">
+        <div class="fn-step">⑤</div>
+        <div class="fn-box"><span class="fn-ico">🌐</span><span class="fn-name">Browser</span></div>
+        <div class="fn-sub">this page</div><div class="fn-port">:8080</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pc">
+    <div class="pc-box pros">
+      <h4>Pros</h4>
+      <ul>
+        <li>Zero frontend chart code — Grafana handles everything</li>
+        <li>Tooltips, legends, zoom, time-range controls included</li>
+        <li>Changes to the Grafana dashboard appear automatically</li>
+        <li>Works with any Grafana datasource (Prometheus, SQL, etc.)</li>
+      </ul>
+    </div>
+    <div class="pc-box cons">
+      <h4>Cons</h4>
+      <ul>
+        <li>Grafana branding and toolbar visible in the iframe</li>
+        <li>Cannot match your page's design system</li>
+        <li>Requires Grafana running + anonymous access enabled</li>
+        <li>Cross-origin auth complexity in production</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid g1 mb">
+    <div class="card c-orange">
+      <div class="ctitle">
+        Orders by Status — <code>POST /aggregate/orders</code> · <code>$group by status</code>
+        <a href="http://localhost:3000/d/fund-overview-mongo" target="_blank">Grafana ↗</a>
+      </div>
+      <iframe src="http://localhost:3000/d-solo/fund-overview-mongo/fund-overview?orgId=1&panelId=2&theme=light" height="280"></iframe>
+    </div>
+  </div>
+  <div class="grid g2 mb">
+    <div class="card c-orange">
+      <div class="ctitle">
+        Product Stock Levels — <code>POST /aggregate/products</code> · <code>$project</code>
+        <a href="http://localhost:3000/d/fund-overview-mongo" target="_blank">↗</a>
+      </div>
+      <iframe src="http://localhost:3000/d-solo/fund-overview-mongo/fund-overview?orgId=1&panelId=3&theme=light" height="260"></iframe>
+    </div>
+    <div class="card c-orange">
+      <div class="ctitle">
+        Total Orders — <code>POST /aggregate/orders</code> · <code>$count</code>
+        <a href="http://localhost:3000/d/fund-overview-mongo" target="_blank">↗</a>
+      </div>
+      <iframe src="http://localhost:3000/d-solo/fund-overview-mongo/fund-overview?orgId=1&panelId=1&theme=light" height="260"></iframe>
+    </div>
+  </div>
+
+  <div class="grid g2 mb">
+    <div class="card c-orange">
+      <div class="ctitle">Ops Per Second — <code>rate(mongodb_op_counters_total[1m])</code><a href="http://localhost:3000/d/mongodb-overview" target="_blank">↗</a></div>
+      <iframe src="http://localhost:3000/d-solo/mongodb-overview/mongodb-overview?orgId=1&panelId=5&theme=light" height="200"></iframe>
+    </div>
+    <div class="card c-orange">
+      <div class="ctitle">Network In/Out — <code>rate(mongodb_ss_network_bytesIn/Out[1m])</code><a href="http://localhost:3000/d/mongodb-overview" target="_blank">↗</a></div>
+      <iframe src="http://localhost:3000/d-solo/mongodb-overview/mongodb-overview?orgId=1&panelId=6&theme=light" height="200"></iframe>
+    </div>
+  </div>
+
+  <div class="grid g4">
+    <div class="card c-orange"><div class="ctitle">MongoDB Up</div><iframe src="http://localhost:3000/d-solo/mongodb-overview/mongodb-overview?orgId=1&panelId=1&theme=light" height="100"></iframe></div>
+    <div class="card c-orange"><div class="ctitle">Active Connections</div><iframe src="http://localhost:3000/d-solo/mongodb-overview/mongodb-overview?orgId=1&panelId=2&theme=light" height="100"></iframe></div>
+    <div class="card c-orange"><div class="ctitle">Available Connections</div><iframe src="http://localhost:3000/d-solo/mongodb-overview/mongodb-overview?orgId=1&panelId=3&theme=light" height="100"></iframe></div>
+    <div class="card c-orange"><div class="ctitle">Resident Memory</div><iframe src="http://localhost:3000/d-solo/mongodb-overview/mongodb-overview?orgId=1&panelId=4&theme=light" height="100"></iframe></div>
+  </div>
+</div>
+
+<hr class="sep">
+
+<!-- ══════════════════════════════════════════
+     METHOD 2 — GRAFANA HTTP API
+══════════════════════════════════════════ -->
+<div class="section m2" id="m2">
+  <div class="section-num">02</div>
+  <div class="mhead">
+    <div class="mbadge">2</div>
+    <h2>Grafana HTTP API</h2>
+    <span class="mtag">Fetch data, render yourself</span>
+  </div>
+
+  <!-- Diagram -->
+  <div class="flow-box">
+    <div class="flow-box-title">Data Flow — browser calls Grafana's query API, gets back data frames, renders its own chart</div>
+    <div class="flow fl-m2">
+      <div class="fn fn-mongo">
+        <div class="fn-step">①</div>
+        <div class="fn-box"><span class="fn-ico">🍃</span><span class="fn-name">MongoDB</span></div>
+        <div class="fn-sub">collections</div><div class="fn-port">:27017</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">aggregation via driver</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-api">
+        <div class="fn-step">②</div>
+        <div class="fn-box"><span class="fn-ico">⚡</span><span class="fn-name">mongo-api</span></div>
+        <div class="fn-sub">REST bridge</div><div class="fn-port">:4000</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">Infinity proxy (server-side)</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-grafana">
+        <div class="fn-step">③</div>
+        <div class="fn-box"><span class="fn-ico">📊</span><span class="fn-name">Grafana</span></div>
+        <div class="fn-sub">POST /api/ds/query</div><div class="fn-port">:3000</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">data frames JSON</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-chart">
+        <div class="fn-step">④</div>
+        <div class="fn-box"><span class="fn-ico">⚙️</span><span class="fn-name">Parse</span></div>
+        <div class="fn-sub">extract values[]</div><div class="fn-port">browser JS</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">labels + data arrays</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-chart">
+        <div class="fn-step">⑤</div>
+        <div class="fn-box"><span class="fn-ico">📈</span><span class="fn-name">Chart.js</span></div>
+        <div class="fn-sub">your chart library</div><div class="fn-port">browser</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">renders in</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-browser">
+        <div class="fn-step">⑥</div>
+        <div class="fn-box"><span class="fn-ico">🌐</span><span class="fn-name">Browser</span></div>
+        <div class="fn-sub">this page</div><div class="fn-port">:8080</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pc">
+    <div class="pc-box pros">
+      <h4>Pros</h4>
+      <ul>
+        <li>Full styling control — your design system, your chart library</li>
+        <li>Access any Grafana datasource (Prometheus, Infinity, SQL…)</li>
+        <li>No Grafana UI chrome — just the data</li>
+        <li>Natural fit for Highcharts (what advisor-web already uses)</li>
+      </ul>
+    </div>
+    <div class="pc-box cons">
+      <h4>Cons</h4>
+      <ul>
+        <li>Must parse Grafana data frames format (non-trivial)</li>
+        <li>Grafana must still be running in the stack</li>
+        <li>CORS: need a proxy or Grafana CORS config</li>
+        <li>Service account / API key required in production</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="demo-split">
+    <div class="cdemo c-blue">
+      <div class="cdemo-head">
+        <div>
+          <h4>Orders by Status — live chart</h4>
+          <div class="sub">Rendered by Chart.js · data fetched via <code style="font-size:.68rem;background:var(--bg);padding:.05rem .3rem;border-radius:3px;border:1px solid var(--border)">/grafana-api/api/ds/query</code></div>
+        </div>
+        <button class="rbtn" onclick="loadM2()">↺ Refresh</button>
+      </div>
+      <div class="cdemo-body">
+        <div class="chart-wrap">
+          <div class="chart-ph" id="m2-ph"><div class="spin"></div><span>Fetching via Grafana API…</span></div>
+          <canvas id="chart2" style="display:none"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="cdemo">
+      <div class="cdemo-head"><h4>How the code works</h4></div>
+      <div class="cdemo-body" style="padding:.75rem">
+        <div class="cblock"><span class="cmt">// 1. Call Grafana's query API (proxied via nginx to avoid CORS)</span>
+<span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">'/grafana-api/api/ds/query'</span>, {
+  method: <span class="str">'POST'</span>,
+  headers: { <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span> },
+  body: <span class="fn">JSON.stringify</span>({
+    queries: [{
+      refId: <span class="str">'A'</span>,
+      datasource: { uid: <span class="str">'mongodb-api-ds'</span> },
+      type: <span class="str">'json'</span>, source: <span class="str">'url'</span>,
+      url: <span class="str">'http://mongo-api:4000/aggregate/orders'</span>,
+      url_options: { method: <span class="str">'POST'</span>, data: <span class="str">'{"pipeline":[{"$group":{"_id":"$status","count":{"$sum":1}}}]}'</span> },
+      columns: [
+        { selector: <span class="str">'_id'</span>,    text: <span class="str">'Status'</span>, type: <span class="str">'string'</span> },
+        { selector: <span class="str">'count'</span>, text: <span class="str">'Count'</span>,  type: <span class="str">'number'</span> }
+      ]
+    }],
+    from: <span class="str">'now-1h'</span>, to: <span class="str">'now'</span>
+  })
+});
+<span class="cmt">// 2. Parse Grafana data frames format</span>
+<span class="kw">const</span> json   = <span class="kw">await</span> res.<span class="fn">json</span>();
+<span class="kw">const</span> frame  = json.results.A.frames[<span class="num">0</span>];
+<span class="kw">const</span> labels = frame.data.values[<span class="num">0</span>]; <span class="cmt">// string column</span>
+<span class="kw">const</span> counts = frame.data.values[<span class="num">1</span>]; <span class="cmt">// number column</span>
+
+<span class="cmt">// 3. Hand off to Chart.js (or Highcharts)</span>
+<span class="kw">new</span> <span class="fn">Chart</span>(canvas, {
+  type: <span class="str">'bar'</span>,
+  data: { labels, datasets: [{ data: counts }] }
+});</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="sep">
+
+<!-- ══════════════════════════════════════════
+     METHOD 3 — DIRECT MONGO-API
+══════════════════════════════════════════ -->
+<div class="section m3" id="m3">
+  <div class="section-num">03</div>
+  <div class="mhead">
+    <div class="mbadge">3</div>
+    <h2>Direct mongo-api</h2>
+    <span class="mtag">Bypass Grafana entirely</span>
+  </div>
+
+  <!-- Diagram -->
+  <div class="flow-box">
+    <div class="flow-box-title">Data Flow — browser talks directly to mongo-api; Grafana is not in this path</div>
+    <div class="flow fl-m3">
+      <div class="fn fn-mongo">
+        <div class="fn-step">①</div>
+        <div class="fn-box"><span class="fn-ico">🍃</span><span class="fn-name">MongoDB</span></div>
+        <div class="fn-sub">collections</div><div class="fn-port">:27017</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">aggregation pipeline via driver</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-api">
+        <div class="fn-step">②</div>
+        <div class="fn-box"><span class="fn-ico">⚡</span><span class="fn-name">mongo-api</span></div>
+        <div class="fn-sub">POST /aggregate/:col</div><div class="fn-port">:4000</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">plain JSON array response</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-dim">
+        <div class="fn-step" style="opacity:.3">—</div>
+        <div class="fn-box"><span class="fn-ico">📊</span><span class="fn-name">Grafana</span></div>
+        <div class="bypassed">not used</div>
+      </div>
+      <div class="fe fe-dim">
+        <div class="fe-lbl"></div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-chart">
+        <div class="fn-step">③</div>
+        <div class="fn-box"><span class="fn-ico">📈</span><span class="fn-name">Chart.js</span></div>
+        <div class="fn-sub">map JSON → chart</div><div class="fn-port">browser</div>
+      </div>
+      <div class="fe">
+        <div class="fe-lbl">renders in</div>
+        <div class="fe-line"><div class="fe-track"></div><div class="fe-head"></div></div>
+      </div>
+      <div class="fn fn-browser">
+        <div class="fn-step">④</div>
+        <div class="fn-box"><span class="fn-ico">🌐</span><span class="fn-name">Browser</span></div>
+        <div class="fn-sub">this page</div><div class="fn-port">:8080</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pc">
+    <div class="pc-box pros">
+      <h4>Pros</h4>
+      <ul>
+        <li>Simplest data path — fewest moving parts</li>
+        <li>Plain JSON response, zero special parsing</li>
+        <li>No Grafana dependency in the production frontend path</li>
+        <li>Best fit for advisor-web (already uses Highcharts + REST APIs)</li>
+      </ul>
+    </div>
+    <div class="pc-box cons">
+      <h4>Cons</h4>
+      <ul>
+        <li>You write all chart and query logic yourself</li>
+        <li>Grafana stays as ops/monitoring only, not embedded in product</li>
+        <li>CORS must be configured on mongo-api (already done in this stack)</li>
+        <li>No Grafana alerting on these specific panels</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- TWO charts side by side -->
+  <div class="demo-dual">
+    <div class="cdemo c-green">
+      <div class="cdemo-head">
+        <div>
+          <h4>Product Stock Levels</h4>
+          <div class="sub">POST <code style="font-size:.65rem;background:var(--bg);padding:.02rem .25rem;border-radius:3px;border:1px solid var(--border)">localhost:4000/aggregate/products</code></div>
+        </div>
+        <button class="rbtn" onclick="loadM3Stock()">↺</button>
+      </div>
+      <div class="cdemo-body">
+        <div class="chart-wrap tall">
+          <div class="chart-ph" id="m3-stock-ph"><div class="spin"></div><span>Fetching stock data…</span></div>
+          <canvas id="chart3stock" style="display:none"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="cdemo c-teal">
+      <div class="cdemo-head">
+        <div>
+          <h4>Revenue Trend (30 days)</h4>
+          <div class="sub">POST <code style="font-size:.65rem;background:var(--bg);padding:.02rem .25rem;border-radius:3px;border:1px solid var(--border)">localhost:4000/aggregate/daily_revenue</code></div>
+        </div>
+        <button class="rbtn" onclick="loadM3Revenue()">↺</button>
+      </div>
+      <div class="cdemo-body">
+        <div class="chart-wrap tall">
+          <div class="chart-ph" id="m3-rev-ph"><div class="spin"></div><span>Fetching revenue trend…</span></div>
+          <canvas id="chart3rev" style="display:none"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo-split">
+    <div class="cdemo">
+      <div class="cdemo-head"><h4>Stock chart code</h4></div>
+      <div class="cdemo-body" style="padding:.75rem">
+        <div class="cblock"><span class="cmt">// 1. Call mongo-api directly — Grafana not involved</span>
+<span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">'http://localhost:4000/aggregate/products'</span>, {
+  method: <span class="str">'POST'</span>,
+  headers: { <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span> },
+  body: <span class="fn">JSON.stringify</span>({
+    pipeline: [{ <span class="key">$project</span>: { _id: <span class="num">0</span>, name: <span class="num">1</span>, stock: <span class="num">1</span> } }]
+  })
+});
+<span class="cmt">// 2. Plain JSON array — no special parsing needed</span>
+<span class="kw">const</span> data   = <span class="kw">await</span> res.<span class="fn">json</span>();
+<span class="kw">const</span> labels = data.<span class="fn">map</span>(d => d.name);
+<span class="kw">const</span> values = data.<span class="fn">map</span>(d => d.stock);
+
+<span class="cmt">// 3. Rounded bars with borderRadius: 8</span>
+<span class="kw">new</span> <span class="fn">Chart</span>(canvas, {
+  type: <span class="str">'bar'</span>,
+  data: { labels, datasets: [{
+    data: values,
+    borderRadius: <span class="num">8</span>, borderSkipped: <span class="str">false</span>
+  }] }
+});</div>
+      </div>
+    </div>
+    <div class="cdemo">
+      <div class="cdemo-head"><h4>Revenue trend code</h4></div>
+      <div class="cdemo-body" style="padding:.75rem">
+        <div class="cblock"><span class="cmt">// Revenue line chart with gradient fill</span>
+<span class="kw">const</span> res = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">'http://localhost:4000/aggregate/daily_revenue'</span>, {
+  method: <span class="str">'POST'</span>,
+  headers: { <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span> },
+  body: <span class="fn">JSON.stringify</span>({
+    pipeline: [
+      { <span class="key">$sort</span>: { date: <span class="num">1</span> } },
+      { <span class="key">$project</span>: { _id: <span class="num">0</span>, day: <span class="num">1</span>, revenue: <span class="num">1</span> } }
+    ]
+  })
+});
+<span class="kw">const</span> data = <span class="kw">await</span> res.<span class="fn">json</span>();
+<span class="cmt">// Create canvas gradient fill</span>
+<span class="kw">const</span> grad = ctx.<span class="fn">createLinearGradient</span>(<span class="num">0</span>,<span class="num">0</span>,<span class="num">0</span>,<span class="num">300</span>);
+grad.<span class="fn">addColorStop</span>(<span class="num">0</span>, <span class="str">'rgba(16,185,129,.35)'</span>);
+grad.<span class="fn">addColorStop</span>(<span class="num">1</span>, <span class="str">'rgba(16,185,129,.02)'</span>);
+<span class="kw">new</span> <span class="fn">Chart</span>(canvas, {
+  type: <span class="str">'line'</span>,
+  data: { labels: data.<span class="fn">map</span>(d=>d.day),
+    datasets: [{ data: data.<span class="fn">map</span>(d=>d.revenue),
+      fill: <span class="str">true</span>, backgroundColor: grad,
+      tension: <span class="num">0.4</span>
+    }]
+  }
+});</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="sep">
+
+<!-- ══════════════════════════════════════════
+     API EXPLORER
+══════════════════════════════════════════ -->
+<div class="section mx" id="mx">
+  <div class="mhead">
+    <div class="mbadge">🔬</div>
+    <h2>Live API Explorer</h2>
+    <span class="mtag">mongo-api :4000</span>
+  </div>
+
+  <div class="explorer">
+    <div class="ex-ctrl">
+      <button class="xbtn" onclick="hit('GET','http://localhost:4000/health',null,this)"><span class="mg">GET</span>/health</button>
+      <button class="xbtn" onclick="hit('GET','http://localhost:4000/collections',null,this)"><span class="mg">GET</span>/collections</button>
+      <button class="xbtn" onclick="hit('GET','http://localhost:4000/collection/orders',null,this)"><span class="mg">GET</span>/collection/orders</button>
+      <button class="xbtn" onclick="hit('GET','http://localhost:4000/collection/products',null,this)"><span class="mg">GET</span>/collection/products</button>
+      <button class="xbtn" onclick="hit('GET','http://localhost:4000/collection/users',null,this)"><span class="mg">GET</span>/collection/users</button>
+      <button class="xbtn" onclick="hit('POST','http://localhost:4000/aggregate/orders',{pipeline:[{$group:{_id:'$status',count:{$sum:1}}},{$sort:{count:-1}}]},this)"><span class="mp">POST</span>/aggregate/orders</button>
+      <button class="xbtn" onclick="hit('POST','http://localhost:4000/aggregate/products',{pipeline:[{$project:{_id:0,name:1,stock:1,price:1}}]},this)"><span class="mp">POST</span>/aggregate/products</button>
+      <button class="xbtn" onclick="hit('POST','http://localhost:4000/aggregate/daily_revenue',{pipeline:[{$sort:{date:-1}},{$limit:7},{$project:{_id:0,day:1,revenue:1,orders:1}}]},this)"><span class="mp">POST</span>/daily_revenue</button>
+    </div>
+    <div class="ex-panes">
+      <div class="ex-pane">
+        <div class="plbl">Request</div>
+        <pre id="req" class="si">← Click a button to fire a request</pre>
+      </div>
+      <div class="ex-pane">
+        <div class="plbl">Response from mongo-api</div>
+        <pre id="res" class="si">Waiting…</pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FOOTER ══ -->
+<footer>
+  <p><a href="http://localhost:3000" target="_blank">Grafana</a> · <a href="http://localhost:9090" target="_blank">Prometheus</a> · <a href="http://localhost:4000/health" target="_blank">mongo-api</a> · <a href="http://localhost:9216/metrics" target="_blank">Exporter metrics</a></p>
+  <p>MongoDB 7 · Node 18 · Grafana OSS · Prometheus · percona/mongodb_exporter · nginx:alpine · Chart.js</p>
+</footer>
+
+<script>
+/* ─────────────────────────────────────────
+   STICKY NAV — appears after scrolling past header
+───────────────────────────────────────── */
+(function() {
+  var header = document.getElementById('page-header');
+  var nav    = document.getElementById('sticky-nav');
+  var io = new IntersectionObserver(function(entries) {
+    nav.classList.toggle('visible', !entries[0].isIntersecting);
+  }, { threshold: 0.1 });
+  io.observe(header);
+})();
+
+/* ─────────────────────────────────────────
+   HEALTH CHECKS
+───────────────────────────────────────── */
+async function checkNoCors(id, url) {
+  var d = document.getElementById('dot-'+id);
+  try { await fetch(url, { mode:'no-cors', cache:'no-cache' }); d.className='dot up'; }
+  catch { d.className='dot down'; }
+}
+async function checkApi() {
+  var d = document.getElementById('dot-api');
+  try {
+    var r = await fetch('http://localhost:4000/health');
+    var j = await r.json();
+    d.className = j.status==='ok' ? 'dot up' : 'dot down';
+  } catch { d.className='dot down'; }
+}
+function runChecks() {
+  checkNoCors('grafana','http://localhost:3000');
+  checkApi();
+  checkNoCors('prom','http://localhost:9090');
+  checkNoCors('exp','http://localhost:9216/metrics');
+}
+runChecks();
+setInterval(runChecks, 30000);
+
+/* ─────────────────────────────────────────
+   LIVE STATS BAR
+───────────────────────────────────────── */
+async function loadStats() {
+  // Orders count
+  try {
+    var r = await fetch('http://localhost:4000/collection/orders?limit=1000');
+    var data = await r.json();
+    var el = document.getElementById('stat-orders');
+    el.textContent = Array.isArray(data) ? data.length + (data.length===1000 ? '+' : '') : '?';
+    el.classList.remove('loading');
+  } catch { document.getElementById('stat-orders').textContent = 'N/A'; }
+
+  // Products count
+  try {
+    var r2 = await fetch('http://localhost:4000/collection/products');
+    var pd = await r2.json();
+    var el2 = document.getElementById('stat-products');
+    el2.textContent = Array.isArray(pd) ? pd.length : '?';
+    el2.classList.remove('loading');
+  } catch { document.getElementById('stat-products').textContent = 'N/A'; }
+
+  // Revenue today from daily_revenue
+  try {
+    var today = new Date().toISOString().slice(0,10);
+    var r3 = await fetch('http://localhost:4000/aggregate/daily_revenue', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ pipeline: [
+        { $sort: { date: -1 } },
+        { $limit: 1 },
+        { $project: { _id:0, day:1, revenue:1 } }
+      ]})
+    });
+    var rd = await r3.json();
+    var el3 = document.getElementById('stat-revenue');
+    el3.textContent = rd.length ? '$' + rd[0].revenue.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}) : 'N/A';
+    el3.classList.remove('loading');
+  } catch { document.getElementById('stat-revenue').textContent = 'N/A'; }
+
+  // Active users
+  try {
+    var r4 = await fetch('http://localhost:4000/aggregate/users', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ pipeline: [{ $match: { active: true } }, { $count: 'n' }] })
+    });
+    var ud = await r4.json();
+    var el4 = document.getElementById('stat-users');
+    el4.textContent = ud.length ? ud[0].n : '?';
+    el4.classList.remove('loading');
+  } catch { document.getElementById('stat-users').textContent = 'N/A'; }
+}
+
+/* ─────────────────────────────────────────
+   CHART HELPERS
+───────────────────────────────────────── */
+var charts = {};
+
+var TICK_STYLE = { color:'#5a6a8c', font:{size:11} };
+var GRID_COLOR = 'rgba(0,0,0,.05)';
+
+var BASE_OPTS = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor:'#1e2a42', titleColor:'#e2e8f0', bodyColor:'#94a3b8',
+      borderColor:'#2d3e5c', borderWidth:1, padding:10
+    }
+  },
+  scales: {
+    x: { grid:{ color:GRID_COLOR }, ticks:TICK_STYLE },
+    y: { grid:{ color:GRID_COLOR }, ticks:TICK_STYLE, beginAtZero:true }
+  }
+};
+
+function showPh(id, msg, isErr) {
+  var ph = document.getElementById(id);
+  ph.style.display = 'flex';
+  ph.className = 'chart-ph' + (isErr ? ' err' : '');
+  ph.innerHTML = isErr
+    ? '<span style="font-size:1.4rem">⚠️</span><span>'+msg+'</span>'
+    : '<div class="spin"></div><span>'+msg+'</span>';
+}
+function hidePh(id) { document.getElementById(id).style.display='none'; }
+
+function destroyChart(key) {
+  if (charts[key]) { charts[key].destroy(); charts[key] = null; }
+}
+
+/* ─────────────────────────────────────────
+   METHOD 2: GRAFANA API — Orders by Status (bar chart)
+───────────────────────────────────────── */
+async function loadM2() {
+  var canvas = document.getElementById('chart2');
+  canvas.style.display = 'none';
+  showPh('m2-ph', 'Fetching via Grafana API…');
+  destroyChart('m2');
+
+  try {
+    var res = await fetch('/grafana-api/api/ds/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        queries: [{
+          refId: 'A',
+          datasource: { uid: 'mongodb-api-ds' },
+          type: 'json', source: 'url',
+          url: 'http://mongo-api:4000/aggregate/orders',
+          url_options: {
+            method: 'POST',
+            data: JSON.stringify({ pipeline: [{ $group: { _id: '$status', count: { $sum: 1 } } }, { $sort: { count: -1 } }] })
+          },
+          columns: [
+            { selector: '_id',   text: 'Status', type: 'string' },
+            { selector: 'count', text: 'Count',  type: 'number' }
+          ]
+        }],
+        from: 'now-1h', to: 'now'
+      })
+    });
+    var json = await res.json();
+    var frame = json.results.A.frames[0];
+    // Infinity datasource puts raw rows in schema.meta.custom.data
+    var raw = frame.schema.meta.custom.data;
+    var labels = raw.map(function(d){ return d._id; });
+    var counts = raw.map(function(d){ return d.count; });
+
+    // Bar colors by status
+    var statusColors = {
+      delivered:'#22c55e', shipped:'#3b82f6', pending:'#f59e0b',
+      processing:'#8b5cf6', cancelled:'#ef4444', returned:'#f97316'
+    };
+    var barColors = labels.map(function(l){ return statusColors[l] || '#60a5fa'; });
+
+    hidePh('m2-ph');
+    canvas.style.display = 'block';
+    charts['m2'] = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Orders',
+          data: counts,
+          backgroundColor: barColors,
+          borderRadius: 8,
+          borderSkipped: false
+        }]
+      },
+      options: (function() {
+        var o = JSON.parse(JSON.stringify(BASE_OPTS));
+        o.plugins.datalabels = false;
+        return o;
+      })()
+    });
+  } catch(e) {
+    showPh('m2-ph', 'Error: ' + e.message + ' — is the stack running?', true);
+  }
+}
+
+/* ─────────────────────────────────────────
+   METHOD 3a: Product Stock (bar chart)
+───────────────────────────────────────── */
+async function loadM3Stock() {
+  var canvas = document.getElementById('chart3stock');
+  canvas.style.display = 'none';
+  showPh('m3-stock-ph', 'Fetching stock data…');
+  destroyChart('m3stock');
+
+  try {
+    var res = await fetch('http://localhost:4000/aggregate/products', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pipeline: [{ $project: { _id: 0, name: 1, stock: 1 } }, { $sort: { stock: -1 } }] })
+    });
+    var data = await res.json();
+    var labels = data.map(function(d){ return d.name; });
+    var values = data.map(function(d){ return d.stock; });
+
+    // Gradient palette for bars
+    var palette = ['#3b82f6','#6366f1','#8b5cf6','#06b6d4','#10b981','#f59e0b','#ef4444','#f97316','#84cc16','#ec4899'];
+    var bgColors = labels.map(function(_,i){ return palette[i % palette.length]; });
+
+    hidePh('m3-stock-ph');
+    canvas.style.display = 'block';
+    charts['m3stock'] = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Stock Units',
+          data: values,
+          backgroundColor: bgColors,
+          borderRadius: 8,
+          borderSkipped: false
+        }]
+      },
+      options: (function() {
+        var o = JSON.parse(JSON.stringify(BASE_OPTS));
+        // short labels on x-axis
+        o.scales.x.ticks.maxRotation = 40;
+        o.scales.x.ticks.font = { size: 9 };
+        return o;
+      })()
+    });
+  } catch(e) {
+    showPh('m3-stock-ph', 'Error: ' + e.message + ' — is the stack running?', true);
+  }
+}
+
+/* ─────────────────────────────────────────
+   METHOD 3b: Revenue Trend (line + gradient fill)
+───────────────────────────────────────── */
+async function loadM3Revenue() {
+  var canvas = document.getElementById('chart3rev');
+  canvas.style.display = 'none';
+  showPh('m3-rev-ph', 'Fetching revenue trend…');
+  destroyChart('m3rev');
+
+  try {
+    var res = await fetch('http://localhost:4000/aggregate/daily_revenue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pipeline: [
+        { $sort: { date: 1 } },
+        { $project: { _id: 0, day: 1, revenue: 1 } }
+      ]})
+    });
+    var data = await res.json();
+    var labels = data.map(function(d){ return d.day ? d.day.slice(5) : ''; }); // MM-DD
+    var values = data.map(function(d){ return d.revenue; });
+
+    hidePh('m3-rev-ph');
+    canvas.style.display = 'block';
+
+    var ctx = canvas.getContext('2d');
+    var grad = ctx.createLinearGradient(0, 0, 0, 300);
+    grad.addColorStop(0, 'rgba(16,185,129,.35)');
+    grad.addColorStop(1, 'rgba(16,185,129,.02)');
+
+    charts['m3rev'] = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Revenue ($)',
+          data: values,
+          fill: true,
+          backgroundColor: grad,
+          borderColor: '#10b981',
+          borderWidth: 2.5,
+          pointBackgroundColor: '#10b981',
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          tension: 0.4
+        }]
+      },
+      options: (function() {
+        var o = JSON.parse(JSON.stringify(BASE_OPTS));
+        o.scales.x.ticks.font = { size: 9 };
+        o.scales.x.ticks.maxTicksLimit = 10;
+        o.plugins.tooltip.callbacks = {
+          label: function(ctx) { return ' $' + ctx.parsed.y.toLocaleString(); }
+        };
+        return o;
+      })()
+    });
+  } catch(e) {
+    showPh('m3-rev-ph', 'Error: ' + e.message + ' — is the stack running?', true);
+  }
+}
+
+/* ─────────────────────────────────────────
+   API EXPLORER
+───────────────────────────────────────── */
+var activeBtn = null;
+async function hit(method, url, body, btn) {
+  if (activeBtn) activeBtn.classList.remove('active');
+  btn.classList.add('active'); activeBtn = btn;
+  var reqEl = document.getElementById('req');
+  var resEl = document.getElementById('res');
+  var txt = method + ' ' + url;
+  if (body) txt += '\nContent-Type: application/json\n\n' + JSON.stringify(body, null, 2);
+  reqEl.className = ''; reqEl.textContent = txt;
+  resEl.className = 'sl'; resEl.textContent = 'Loading…';
+  try {
+    var opts = { method: method, headers: {} };
+    if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    var r = await fetch(url, opts);
+    var d = await r.json();
+    resEl.className = ''; resEl.textContent = JSON.stringify(d, null, 2);
+  } catch(e) {
+    resEl.className = 'se';
+    resEl.textContent = 'Error: ' + e.message + '\n\nRun: docker compose up -d';
+  }
+}
+
+/* ─────────────────────────────────────────
+   INIT
+───────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function() {
+  loadStats();
+  loadM2();
+  loadM3Stock();
+  loadM3Revenue();
+});
+</script>
+</body>
+</html>

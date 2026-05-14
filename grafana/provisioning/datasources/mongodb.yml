@@ -1,0 +1,13 @@
+apiVersion: 1
+datasources:
+  # Infinity datasource (free) — queries the mongo-api REST service
+  # which in turn runs aggregation pipelines against MongoDB
+  - name: MongoDB-API
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    uid: mongodb-api-ds
+    isDefault: false
+    editable: true
+    jsonData:
+      # Base URL points to the mongo-api service inside the Docker network
+      base_url: http://mongo-api:4000

@@ -1,0 +1,110 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "yesoreyeram-infinity-datasource", "name": "Infinity", "version": "1.0.0" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Fund data from MongoDB via mongo-api REST layer + Infinity datasource (free)",
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "short" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Total Orders",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://mongo-api:4000/aggregate/orders",
+          "url_options": { "method": "POST", "data": "{\"pipeline\":[{\"$count\":\"total\"}]}" },
+          "columns": [{ "selector": "total", "text": "Total", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2, "fillOpacity": 15 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 4 },
+      "id": 2,
+      "options": {
+        "legend": { "calcs": ["last", "min", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Orders by Status (replace with fund_nav collection for production)",
+      "type": "barchart",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://mongo-api:4000/aggregate/orders",
+          "url_options": {
+            "method": "POST",
+            "data": "{\"pipeline\":[{\"$group\":{\"_id\":\"$status\",\"count\":{\"$sum\":1}}}]}"
+          },
+          "columns": [
+            { "selector": "_id", "text": "Status", "type": "string" },
+            { "selector": "count", "text": "Count", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "id": 3,
+      "options": { "legend": { "displayMode": "table", "placement": "right" } },
+      "title": "Product Stock Levels",
+      "type": "piechart",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://mongo-api:4000/aggregate/products",
+          "url_options": {
+            "method": "POST",
+            "data": "{\"pipeline\":[{\"$project\":{\"_id\":0,\"name\":1,\"stock\":1}}]}"
+          },
+          "columns": [
+            { "selector": "name", "text": "Product", "type": "string" },
+            { "selector": "stock", "text": "Stock", "type": "number" }
+          ]
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["mongodb", "fund", "prototype"],
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "title": "Fund Overview (MongoDB via REST API)",
+  "uid": "fund-overview-mongo",
+  "version": 1
+}
