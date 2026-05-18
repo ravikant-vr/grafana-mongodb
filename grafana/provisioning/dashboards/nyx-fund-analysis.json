@@ -1,0 +1,256 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "yesoreyeram-infinity-datasource", "name": "Infinity", "version": "1.0.0" }
+  ],
+  "annotations": { "list": [] },
+  "description": "NyxDB fund analytics — fund masters, daily NAVs, performance snapshots, category distribution",
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" }, "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#3b82f6", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto" },
+      "title": "Total Fund Masters",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json", "source": "url", "format": "table",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_masters",
+          "url_options": { "method": "POST", "data": "{\"pipeline\":[{\"$count\":\"total\"}]}" },
+          "columns": [{ "selector": "total", "text": "Funds", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" }, "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#10b981", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 6,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Unique NAV Plans",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json", "source": "url", "format": "table",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_plan_daily_navs",
+          "url_options": { "method": "POST", "data": "{\"pipeline\":[{\"$group\":{\"_id\":\"$plan_id\"}},{\"$count\":\"total\"}]}" },
+          "columns": [{ "selector": "total", "text": "Plans", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" }, "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#f59e0b", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 7,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Total Daily NAV Records",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json", "source": "url", "format": "table",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_plan_daily_navs",
+          "url_options": { "method": "POST", "data": "{\"pipeline\":[{\"$count\":\"total\"}]}" },
+          "columns": [{ "selector": "total", "text": "Records", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" }, "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#8b5cf6", "value": null }] }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 8,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Performance Snapshots",
+      "type": "stat",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json", "source": "url", "format": "table",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_perf_grp_snapshot_latests",
+          "url_options": { "method": "POST", "data": "{\"pipeline\":[{\"$count\":\"total\"}]}" },
+          "columns": [{ "selector": "total", "text": "Snapshots", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "spanNulls": false },
+          "unit": "none"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "NAV" }, "properties": [{ "id": "color", "value": { "fixedColor": "#3b82f6", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Adjusted NAV" }, "properties": [{ "id": "color", "value": { "fixedColor": "#10b981", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 4 },
+      "id": 2,
+      "options": {
+        "legend": { "calcs": ["last", "min", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Daily NAV Trend — Plan 13 (NyxDB.funds__fund_plan_daily_navs)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json", "source": "url", "format": "table",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_plan_daily_navs",
+          "url_options": {
+            "method": "POST",
+            "data": "{\"pipeline\":[{\"$match\":{\"plan_id\":21}},{\"$sort\":{\"as_on_date\":1}},{\"$limit\":60},{\"$addFields\":{\"date\":{\"$toDate\":\"$as_on_date\"}}},{\"$project\":{\"_id\":0,\"date\":1,\"nav\":1,\"adjusted_nav\":1}}]}"
+          },
+          "columns": [
+            { "selector": "date", "text": "Date", "type": "datetime" },
+            { "selector": "nav", "text": "NAV", "type": "number" },
+            { "selector": "adjusted_nav", "text": "Adjusted NAV", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 14 },
+      "id": 3,
+      "options": {
+        "legend": { "calcs": ["last"], "displayMode": "table", "placement": "right" },
+        "tooltip": { "mode": "multi" },
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 80
+      },
+      "title": "Top Performers — Performance Snapshot (NyxDB)",
+      "type": "barchart",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json", "source": "url", "format": "table",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_perf_grp_snapshot_latests",
+          "url_options": {
+            "method": "POST",
+            "data": "{\"pipeline\":[{\"$sort\":{\"perf_grp_id\":1}},{\"$limit\":15},{\"$project\":{\"_id\":0,\"perf_grp_id\":1,\"ret_1year_return\":{\"$ifNull\":[\"$ret_1year.return\",0]}}}]}"
+          },
+          "columns": [
+            { "selector": "perf_grp_id", "text": "Perf Group ID", "type": "string" },
+            { "selector": "ret_1year_return", "text": "1yr Return (%)", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 14 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "table", "placement": "right" } },
+      "title": "Category Distribution (NyxDB.funds__fund_category_snapshot_latests)",
+      "type": "piechart",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json", "source": "url", "format": "table",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_category_snapshot_latests",
+          "url_options": {
+            "method": "POST",
+            "data": "{\"pipeline\":[{\"$group\":{\"_id\":\"$category_id\",\"fund_count\":{\"$sum\":1}}},{\"$sort\":{\"fund_count\":-1}},{\"$limit\":12}]}"
+          },
+          "columns": [
+            { "selector": "_id", "text": "Category", "type": "string" },
+            { "selector": "fund_count", "text": "Count", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 23 },
+      "id": 5,
+      "options": {
+        "legend": { "calcs": ["last"], "displayMode": "table", "placement": "right" },
+        "tooltip": { "mode": "multi" },
+        "xTickLabelRotation": -45,
+        "orientation": "horizontal"
+      },
+      "title": "Fund Count by Category (NyxDB.funds__fund_masters)",
+      "type": "barchart",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json", "source": "url", "format": "table",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_masters",
+          "url_options": {
+            "method": "POST",
+            "data": "{\"pipeline\":[{\"$group\":{\"_id\":\"$amc_id\",\"count\":{\"$sum\":1}}},{\"$sort\":{\"count\":-1}},{\"$limit\":20}]}"
+          },
+          "columns": [
+            { "selector": "_id", "text": "Category", "type": "string" },
+            { "selector": "count", "text": "Fund Count", "type": "number" }
+          ]
+        }
+      ]
+    }
+  ],
+  "refresh": "1m",
+  "schemaVersion": 38,
+  "tags": ["mongodb", "nyxdb", "fund", "analytics"],
+  "time": { "from": "now-90d", "to": "now" },
+  "timepicker": {},
+  "title": "NyxDB Fund Analysis",
+  "uid": "nyx-fund-analysis",
+  "version": 2
+}

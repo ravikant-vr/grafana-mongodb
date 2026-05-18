@@ -5,7 +5,7 @@
     { "type": "datasource", "id": "yesoreyeram-infinity-datasource", "name": "Infinity", "version": "1.0.0" }
   ],
   "annotations": { "list": [] },
-  "description": "Fund data from MongoDB via mongo-api REST layer + Infinity datasource (free)",
+  "description": "Fund NAV data from NyxDB.funds__fund_plan_daily_navs via mongo-api REST layer + Infinity datasource",
   "editable": true,
   "graphTooltip": 1,
   "id": null,
@@ -14,13 +14,15 @@
     {
       "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "thresholds" }, "unit": "short" },
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#3b82f6", "value": null }] }
+        },
         "overrides": []
       },
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "id": 1,
-      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
-      "title": "Total Orders",
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto" },
+      "title": "Total NAV Records",
       "type": "stat",
       "targets": [
         {
@@ -29,7 +31,7 @@
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "http://mongo-api:4000/aggregate/orders",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_plan_daily_navs",
           "url_options": { "method": "POST", "data": "{\"pipeline\":[{\"$count\":\"total\"}]}" },
           "columns": [{ "selector": "total", "text": "Total", "type": "number" }]
         }
@@ -38,17 +40,16 @@
     {
       "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2, "fillOpacity": 15 } },
+        "defaults": { "color": { "mode": "thresholds" }, "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#8b5cf6", "value": null }] }
+        },
         "overrides": []
       },
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 4 },
-      "id": 2,
-      "options": {
-        "legend": { "calcs": ["last", "min", "max"], "displayMode": "table", "placement": "bottom" },
-        "tooltip": { "mode": "multi" }
-      },
-      "title": "Orders by Status (replace with fund_nav collection for production)",
-      "type": "barchart",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 4,
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "title": "Unique Plans",
+      "type": "stat",
       "targets": [
         {
           "refId": "A",
@@ -56,14 +57,49 @@
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "http://mongo-api:4000/aggregate/orders",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_plan_daily_navs",
+          "url_options": { "method": "POST", "data": "{\"pipeline\":[{\"$group\":{\"_id\":\"$plan_id\"}},{\"$count\":\"total\"}]}" },
+          "columns": [{ "selector": "total", "text": "Plans", "type": "number" }]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 12, "spanNulls": false },
+          "unit": "none"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "NAV" }, "properties": [{ "id": "color", "value": { "fixedColor": "#3b82f6", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Adjusted NAV" }, "properties": [{ "id": "color", "value": { "fixedColor": "#8b5cf6", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 4 },
+      "id": 2,
+      "options": {
+        "legend": { "calcs": ["last", "min", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "NAV Trend — Plan 13 (NyxDB)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_plan_daily_navs",
           "url_options": {
             "method": "POST",
-            "data": "{\"pipeline\":[{\"$group\":{\"_id\":\"$status\",\"count\":{\"$sum\":1}}}]}"
+            "data": "{\"pipeline\":[{\"$match\":{\"plan_id\":21}},{\"$sort\":{\"as_on_date\":-1}},{\"$limit\":60},{\"$sort\":{\"as_on_date\":1}},{\"$addFields\":{\"date\":{\"$toDate\":\"$as_on_date\"}}},{\"$project\":{\"_id\":0,\"date\":1,\"nav\":1,\"adjusted_nav\":1}}]}"
           },
           "columns": [
-            { "selector": "_id", "text": "Status", "type": "string" },
-            { "selector": "count", "text": "Count", "type": "number" }
+            { "selector": "date", "text": "Date", "type": "datetime" },
+            { "selector": "nav", "text": "NAV", "type": "number" },
+            { "selector": "adjusted_nav", "text": "Adjusted NAV", "type": "number" }
           ]
         }
       ]
@@ -74,10 +110,45 @@
         "defaults": { "color": { "mode": "palette-classic" } },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 14 },
       "id": 3,
+      "options": {
+        "legend": { "calcs": ["last"], "displayMode": "table", "placement": "right" },
+        "tooltip": { "mode": "multi" },
+        "xTickLabelRotation": -45,
+        "xTickLabelSpacing": 100
+      },
+      "title": "Latest NAV by Plan (NyxDB)",
+      "type": "barchart",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_plan_daily_navs",
+          "url_options": {
+            "method": "POST",
+            "data": "{\"pipeline\":[{\"$sort\":{\"as_on_date\":-1}},{\"$group\":{\"_id\":\"$plan_id\",\"latest_nav\":{\"$first\":\"$nav\"}}},{\"$sort\":{\"_id\":1}},{\"$limit\":20}]}"
+          },
+          "columns": [
+            { "selector": "_id", "text": "Plan ID", "type": "string" },
+            { "selector": "latest_nav", "text": "Latest NAV", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 14 },
+      "id": 5,
       "options": { "legend": { "displayMode": "table", "placement": "right" } },
-      "title": "Product Stock Levels",
+      "title": "NAV Distribution by Plan (Pie) — NyxDB",
       "type": "piechart",
       "targets": [
         {
@@ -86,14 +157,54 @@
           "type": "json",
           "source": "url",
           "format": "table",
-          "url": "http://mongo-api:4000/aggregate/products",
+          "url": "http://mongo-api:4000/aggregate/funds__fund_plan_daily_navs",
           "url_options": {
             "method": "POST",
-            "data": "{\"pipeline\":[{\"$project\":{\"_id\":0,\"name\":1,\"stock\":1}}]}"
+            "data": "{\"pipeline\":[{\"$sort\":{\"as_on_date\":-1}},{\"$group\":{\"_id\":\"$plan_id\",\"latest_nav\":{\"$first\":\"$nav\"}}},{\"$sort\":{\"_id\":1}},{\"$limit\":10}]}"
           },
           "columns": [
-            { "selector": "name", "text": "Product", "type": "string" },
-            { "selector": "stock", "text": "Stock", "type": "number" }
+            { "selector": "_id", "text": "Plan", "type": "string" },
+            { "selector": "latest_nav", "text": "NAV", "type": "number" }
+          ]
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false },
+          "unit": "percent"
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Plan 21" }, "properties": [{ "id": "color", "value": { "fixedColor": "#1a44d0", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Plan 22" }, "properties": [{ "id": "color", "value": { "fixedColor": "#166534", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Plan 23" }, "properties": [{ "id": "color", "value": { "fixedColor": "#8b1a1a", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 23 },
+      "id": 6,
+      "options": {
+        "legend": { "calcs": ["last", "min", "max"], "displayMode": "table", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "title": "Returns Comparison (%) — Plans 21 · 22 · 23",
+      "type": "timeseries",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "mongodb-api-ds" },
+          "type": "json",
+          "source": "url",
+          "format": "table",
+          "url": "http://mongo-api:4000/returns?plan_ids=21,22,23&period=1y&format=flat",
+          "url_options": { "method": "GET" },
+          "columns": [
+            { "selector": "date",    "text": "Date",    "type": "datetime" },
+            { "selector": "plan_21", "text": "Plan 21", "type": "number" },
+            { "selector": "plan_22", "text": "Plan 22", "type": "number" },
+            { "selector": "plan_23", "text": "Plan 23", "type": "number" }
           ]
         }
       ]
@@ -101,10 +212,10 @@
   ],
   "refresh": "30s",
   "schemaVersion": 38,
-  "tags": ["mongodb", "fund", "prototype"],
+  "tags": ["mongodb", "nyxdb", "nav", "fund"],
   "time": { "from": "now-24h", "to": "now" },
   "timepicker": {},
-  "title": "Fund Overview (MongoDB via REST API)",
+  "title": "Fund NAV Overview (NyxDB)",
   "uid": "fund-overview-mongo",
-  "version": 1
+  "version": 4
 }

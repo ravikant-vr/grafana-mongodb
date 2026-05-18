@@ -13,7 +13,17 @@
       "Bash(curl -s -X POST http://localhost:8080/grafana-api/api/ds/query -H 'Content-Type: application/json' -d '{\"queries\":[{\"refId\":\"A\",\"datasource\":{\"uid\":\"mongodb-api-ds\"},\"type\":\"json\",\"source\":\"url\",\"url\":\"http://mongo-api:4000/aggregate/orders\",\"url_options\":{\"method\":\"POST\",\"data\":\"{\\\\\"pipeline\\\\\":[{\\\\\"$group\\\\\":{\\\\\"_id\\\\\":\\\\\"$status\\\\\",\\\\\"count\\\\\":{\\\\\"$sum\\\\\":1}}}]}\"},\"columns\":[{\"selector\":\"_id\",\"text\":\"Status\",\"type\":\"string\"},{\"selector\":\"count\",\"text\":\"Count\",\"type\":\"number\"}]}],\"from\":\"now-1h\",\"to\":\"now\"}')",
       "PowerShell(Get-ChildItem \"C:\\\\Users\\\\topdo\\\\grafana-mongodb\" -Depth 1 | Where-Object { $_.Name -ne \"node_modules\" } | Select-Object FullName, PSIsContainer)",
       "Bash(git rm *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(curl -s \"http://localhost:4000/returns?plan_ids=21,22,23&period=1y\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('labels:', len\\(d.get\\('labels',[]\\)\\), 'series:', [\\(s['name'], len\\(s['data']\\)\\) for s in d.get\\('series',[]\\)]\\)\")",
+      "Bash(curl -s \"http://localhost:4000/returns?plan_ids=21,22,23&period=1y&format=flat\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('rows:', len\\(d\\), 'first:', d[0] if d else 'none', 'last:', d[-1] if d else 'none'\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(curl -s -X POST http://localhost:4000/aggregate/funds__fund_plan_daily_navs -H 'Content-Type: application/json' -d '{\"pipeline\":[{\"$match\":{\"plan_id\":21}},{\"$sort\":{\"as_on_date\":1}},{\"$limit\":5},{\"$project\":{\"_id\":0,\"as_on_date\":1,\"nav\":1}}]}')",
+      "Bash(curl -s -X POST http://localhost:4000/aggregate/funds__fund_plan_daily_navs -H 'Content-Type: application/json' -d '{\"pipeline\":[{\"$match\":{\"plan_id\":21,\"as_on_date\":{\"$gte\":\"2025-05-14\"}}},{\"$sort\":{\"as_on_date\":1}},{\"$limit\":5},{\"$project\":{\"_id\":0,\"as_on_date\":1,\"nav\":1}}]}')",
+      "Bash(curl -s -X POST http://localhost:4000/aggregate/funds__fund_plan_daily_navs -H 'Content-Type: application/json' -d '{\"pipeline\":[{\"$match\":{\"plan_id\":21}},{\"$sort\":{\"as_on_date\":-1}},{\"$limit\":3},{\"$project\":{\"_id\":0,\"as_on_date\":1,\"nav\":1}}]}')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"http://localhost:8080/grafana-api/api/health\")",
+      "Bash(curl -s -X POST \"http://localhost:8080/grafana-api/api/ds/query\" -H \"Content-Type: application/json\" -d \"{\\\\\"queries\\\\\":[{\\\\\"refId\\\\\":\\\\\"A\\\\\",\\\\\"datasource\\\\\":{\\\\\"uid\\\\\":\\\\\"mongodb-api-ds\\\\\"},\\\\\"type\\\\\":\\\\\"json\\\\\",\\\\\"source\\\\\":\\\\\"url\\\\\",\\\\\"format\\\\\":\\\\\"table\\\\\",\\\\\"url\\\\\":\\\\\"http://mongo-api:4000/returns?plan_ids=21,22,23&period=1y&format=flat\\\\\",\\\\\"url_options\\\\\":{\\\\\"method\\\\\":\\\\\"GET\\\\\"},\\\\\"columns\\\\\":[{\\\\\"selector\\\\\":\\\\\"date\\\\\",\\\\\"text\\\\\":\\\\\"Date\\\\\",\\\\\"type\\\\\":\\\\\"string\\\\\"},{\\\\\"selector\\\\\":\\\\\"plan_21\\\\\",\\\\\"text\\\\\":\\\\\"Plan 21\\\\\",\\\\\"type\\\\\":\\\\\"number\\\\\"},{\\\\\"selector\\\\\":\\\\\"plan_22\\\\\",\\\\\"text\\\\\":\\\\\"Plan 22\\\\\",\\\\\"type\\\\\":\\\\\"number\\\\\"},{\\\\\"selector\\\\\":\\\\\"plan_23\\\\\",\\\\\"text\\\\\":\\\\\"Plan 23\\\\\",\\\\\"type\\\\\":\\\\\"number\\\\\"}]}],\\\\\"from\\\\\":\\\\\"now-1y\\\\\",\\\\\"to\\\\\":\\\\\"now\\\\\"}\")"
     ]
   }
 }
